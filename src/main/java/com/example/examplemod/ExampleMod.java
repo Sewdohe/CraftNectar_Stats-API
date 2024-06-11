@@ -1,5 +1,6 @@
 package com.example.examplemod;
 
+import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -29,6 +30,7 @@ public class ExampleMod
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static WebServer webServer;
+    private MinecraftServer mcServer;
 
     public ExampleMod()
     {
@@ -46,12 +48,6 @@ public class ExampleMod
 
     private void commonSetup(final FMLCommonSetupEvent event)
     {
-        webServer = new WebServer(9999); // Port 8080 can be configured
-        try {
-            webServer.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
         // Some common setup code
         LOGGER.info("HELLO FROM COMMON SETUP");
 
@@ -62,6 +58,15 @@ public class ExampleMod
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event)
     {
+
+        this.mcServer = event.getServer();
+        webServer = new WebServer(33476, mcServer); // Port 8080 can be configured
+        try {
+            webServer.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+//        LOGGER.warn("GOT SERVER INSTANCE: " + this.mcServer.name());
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
     }
