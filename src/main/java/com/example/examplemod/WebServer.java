@@ -1,31 +1,29 @@
 package com.example.examplemod;
 
+import com.google.gson.GsonBuilder;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
+import io.undertow.util.HttpString;
 import net.minecraft.server.MinecraftServer;
 
-import net.minecraft.server.dedicated.DedicatedServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.server.ServerLifecycleHooks;
+
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import com.google.gson.Gson;
+
+import java.util.Collection;
 
 public class WebServer {
 
-    private final Undertow server;
-//    private MinecraftServer mcServer;
+    public final Undertow server;
     private static final Logger LOGGER = LogUtils.getLogger();
-    private final MinecraftServer mcServer;
+    public final MinecraftServer mcServer;
+
 
     // Create a handler for the hello world endpoint
     HttpHandler helloWorldHandler = exchange -> {
@@ -38,8 +36,11 @@ public class WebServer {
     };
     // Create a handler to send current player list
     HttpHandler playerListHandler = exchange -> {
-        exchange.getResponseSender().send(getPlayers().toString());
+        exchange.getResponseHeaders().add(new HttpString("Access-Control-Allow-Origin"), "*");
+        exchange.getResponseSender().send(getPlayers());
     };
+
+
 
     public WebServer(int port, MinecraftServer mcServer) {
         this.server = Undertow.builder()
@@ -54,8 +55,15 @@ public class WebServer {
         LOGGER.info("WebServer created on port " + port);
     }
 
-    public List<PlayerData> getPlayers() {
-        return mcServer.getPlayerList().getPlayers().stream().map(PlayerData::new).collect(Collectors.toList());
+    public String getPlayers() {
+        Gson gson = new Gson();
+        Collection<PlayerData> players = mcServer.getPlayerList().getPlayers().stream().map(PlayerData::new).toList();
+        LOGGER.info("Attempting parsing players: {}", players);
+        for(PlayerData player : players) {
+            LOGGER.info(player.getPlayerName() + "with " + player.getTotalLevels() + " levels");
+        }
+
+        return gson.toJson(players);
     }
 
     public void start() throws Exception {
@@ -65,10 +73,6 @@ public class WebServer {
 
     public void stop() throws Exception {
         server.stop();
-    }
-
-    public List<ServerPlayer> getOnlinePlayers() {
-        return mcServer.getPlayerList().getPlayers();
     }
 
     @SubscribeEvent

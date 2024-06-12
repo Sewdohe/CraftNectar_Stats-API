@@ -3,7 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 version = mod_version
@@ -14,13 +14,7 @@ base {
     archivesName = mod_id
 }
 
-//copyIdeResources = true
-
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
-jarJar.enable()
-tasks.named('jarJar') {
-    archiveClassifier = "server"
-}
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 minecraft {
@@ -71,19 +65,8 @@ repositories {
         url 'https://cursemaven.com'
         content { includeGroup 'curse.maven' }
     }
-}
-
-shadowJar {
-    // Only shadow fluent-hc
-    dependencies {
-        include(dependency('io.undertow:undertow-core'))
-        include(dependency('org.jboss.xnio:xnio-nio'))
-        include(dependency('org.jboss.xnio:xnio-api'))
-        include(dependency('org.jboss.xnio:io-utils'))
-        include(dependency('org.jboss.xnio:bits'))
-        include(dependency('org.wildfly.common:wildfly-common'))
-        include(dependency('org.jboss.logging:jboss-logging'))
-        include(dependency('org.jboss.threads:jboss-threads'))
+    maven {
+        url "https://repository.jboss.org/maven2"
     }
 }
 
@@ -91,30 +74,37 @@ reobf {
     shadowJar {} // Reobfuscate the shadowed JAR
 }
 
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    //    implementation jarJar(group: "io.undertow", name: "undertow-core", version: "[2.2.10-Final,)")
-    //    externalLibs files('libs/undertow-core-2.2.10-Final.jar')
-//    implementation 'io.undertow:undertow-core:2.2.10-Final'
-      minecraftLibrary jarJar(group: "io.undertow", name: "undertow-core", version: "[2.3.13.Final,)")
-      minecraftLibrary jarJar(group: 'org.jboss.xnio', name: 'xnio-nio', version: '[3.8.15.Final,)')
-      implementation fg.deobf('curse.maven:pmmo-353935:4729828')
-//    implementation group: 'io.undertow', name: 'undertow-core', version: '2.3.13.Final'
+    //  shade 'com.google.code.gson:gson:2.11.0'
+    shade(group: "io.undertow", name: "undertow-core", version: "2.3.13.Final")
+    shade(group: 'org.jboss.xnio', name: 'xnio-nio', version: '3.8.15.Final')
 
+    implementation fg.deobf('curse.maven:pmmo-353935:4729828')
+}
 
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+shadowJar {
+    archiveClassifier = ''
+    configurations = [project.configurations.shade]
+    relocate 'io.undertow.undertow-core', "${project.group}.relocated.undertow-core"
+    relocate 'org.jboss.xnio.xnio-nio', "${project.group}.relocated.xnio-nio"
+    //    relocate 'com.google.code.gson', "${project.group}.relocated.gson"
+    finalizedBy 'reobfShadowJar'
 }
 
 tasks.named('processResources', ProcessResources).configure {
     var replaceProperties = [
-            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version, forge_version_range: forge_version_range,
+            minecraft_version   : minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version       : forge_version, forge_version_range: forge_version_range,
             loader_version_range: loader_version_range,
-            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-            mod_authors: mod_authors, mod_description: mod_description,
+            mod_id              : mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors         : mod_authors, mod_description: mod_description,
     ]
     inputs.properties replaceProperties
 
@@ -136,7 +126,13 @@ tasks.named('jar', Jar).configure {
 //                'Main-Class'             : 'com.example.examplemod.ExampleMod'
         ])
     }
-    finalizedBy 'reobfJar'
+    finalizedBy 'shadowJar'
+}
+
+jar {
+    archiveClassifier = 'slim'
+    manifest {
+    }
 }
 
 publishing {
@@ -157,4 +153,17 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 
-build.dependsOn(shadowJar)
+//build.dependsOn(shadowJar)
+
+assemble.dependsOn shadowJar
+
+// TODO: Make a command to upload the mod to the server so I don't have to do it manually anymore.
+//tasks.register('uploadMod') {
+//    doLast {
+//        exec {
+//            workingDir '.'
+//            commandLine ''
+//
+//        }
+//    }
+//}
